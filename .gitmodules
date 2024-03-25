@@ -1,0 +1,12 @@
+[submodule "embedded-systems-design/virtual_prototype_cs476"]
+	path = embedded-systems-design/virtual_prototype_cs476
+	url = git@github.com:alexthe2/virtual_prototype_cs476.git
+[submodule "advanced-computer-architecture/CS470-Homeworks"]
+	path = advanced-computer-architecture/CS470-Homeworks
+	url = git@github.com:EPFL-LAP/CS470-Homeworks.git
+[submodule "modern-nlp/a1-2024-badochov"]
+	path = modern-nlp/a1-2024-badochov
+	url = git@github.com:CS-552/a1-2024-badochov.git
+[submodule "modern-nlp/cs-552-modern-nlp"]
+	path = modern-nlp/cs-552-modern-nlp
+	url = https://github.com/epfl-nlp/cs-552-modern-nlp.git
