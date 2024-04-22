@@ -10,3 +10,12 @@
 [submodule "modern-nlp/cs-552-modern-nlp"]
 	path = modern-nlp/cs-552-modern-nlp
 	url = https://github.com/epfl-nlp/cs-552-modern-nlp.git
+[submodule "modern-nlp/a2-2024-badochov"]
+	path = modern-nlp/a2-2024-badochov
+	url = git@github.com:CS-552/a2-2024-badochov.git
+[submodule "modern-nlp/a3-2024-badochov"]
+	path = modern-nlp/a3-2024-badochov
+	url = git@github.com:CS-552/a3-2024-badochov.git
+[submodule "modern-nlp/project-m1-2024-giewont"]
+	path = modern-nlp/project-m1-2024-giewont
+	url = git@github.com:CS-552/project-m1-2024-giewont.git
