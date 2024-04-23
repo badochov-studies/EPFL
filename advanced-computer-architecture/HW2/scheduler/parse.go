@@ -32,7 +32,7 @@ func parseReg(op string) (reg, error) {
 
 	switch op[0] {
 	case 'x':
-		res.type_ = aluReg
+		res.type_ = xReg
 	case 'p':
 		res.type_ = predReg
 	default:
@@ -51,7 +51,7 @@ func parseAluReg(op string) (reg, error) {
 	if err != nil {
 		return reg{}, fmt.Errorf("error parsing an alu reg, %w", err)
 	}
-	if res.type_ != aluReg {
+	if res.type_ != xReg {
 		return reg{}, fmt.Errorf("not an alu reg '%s'", op)
 	}
 	return res, nil
@@ -144,7 +144,7 @@ func parseInstruction(asm string) (ins instruction, err error) {
 		}
 
 		switch ins.regA.type_ {
-		case aluReg:
+		case xReg:
 			ins.regB, err = parseAluReg(parts[2])
 			if err != nil {
 				ins.imm, err = parseImm(parts[2])

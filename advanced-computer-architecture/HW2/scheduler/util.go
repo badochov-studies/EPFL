@@ -6,13 +6,36 @@ func (i instruction) regs() (dst *reg, params []reg) {
 	case add, sub, mulu:
 		return &regA, []reg{i.regB, i.regC}
 	case addi,
-		ld, st:
+		ld:
 		return &regA, []reg{i.regB}
+	case st:
+		return nil, []reg{regA, i.regB}
 	case mov:
-		if regA.type_ == aluReg && i.usesReg {
+		if regA.type_ == xReg && i.usesReg {
 			return &regA, []reg{i.regB}
 		}
 		return &regA, nil
+	case loop, loopPip, nop:
+		return nil, nil
+	default:
+		panic("Impossible")
+	}
+}
+
+func (i *instruction) mutRegs() (dst *reg, params []*reg) {
+	switch i.type_ {
+	case add, sub, mulu:
+		return &i.regA, []*reg{&i.regB, &i.regC}
+	case addi,
+		ld:
+		return &i.regA, []*reg{&i.regB}
+	case st:
+		return nil, []*reg{&i.regA, &i.regB}
+	case mov:
+		if i.regA.type_ == xReg && i.usesReg {
+			return &i.regA, []*reg{&i.regB}
+		}
+		return &i.regA, nil
 	case loop, loopPip, nop:
 		return nil, nil
 	default:
@@ -56,44 +79,27 @@ func (it instructionType) isBranch() bool {
 	}
 }
 
-type block struct {
-	instructions []instruction
-	isLoop       bool
+type blocks struct {
+	bb0 []instruction
+	bb1 []instruction
+	bb2 []instruction
 }
 
-func (b block) startPC() int {
-	if len(b.instructions) == 0 {
-		return -1
-	}
-	return b.instructions[0].pc
-}
-
-func splitIntoBlock(instructions []instruction) (res []block) {
-	blockStart := 0
-
+func splitIntoBlocks(instructions []instruction) blocks {
 	for i, ins := range instructions {
 		if ins.type_.isBranch() {
 			to := ins.imm
-			initBlock := block{
-				instructions: instructions[blockStart:to],
-				isLoop:       false,
+			return blocks{
+				bb0: instructions[:to],
+				bb1: instructions[to : i+1],
+				bb2: instructions[i+1:],
 			}
-			loopBlock := block{
-				instructions: instructions[to : i+1],
-				isLoop:       true,
-			}
-			blockStart = i + 1
-			res = append(res, initBlock, loopBlock)
 		}
 	}
 
-	finishBlock := block{
-		instructions: instructions[blockStart:],
-		isLoop:       false,
+	return blocks{
+		bb0: instructions,
 	}
-	res = append(res, finishBlock)
-
-	return
 }
 
 func (i instruction) latency() int {
@@ -101,4 +107,11 @@ func (i instruction) latency() int {
 		return 3
 	}
 	return 1
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }

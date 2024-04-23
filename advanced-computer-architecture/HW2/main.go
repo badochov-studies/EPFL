@@ -34,12 +34,12 @@ func main() {
 		log.Fatalln(os.Args[0] + " </path/to/input.json> </path/to/loop.json> </path/to/looppip.json>")
 	}
 
-	outLoopFile, err := os.Create(os.Args[3])
+	outLoopPipFile, err := os.Create(os.Args[3])
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	outLoopPipFile, err := os.Create(os.Args[2])
+	outLoopFile, err := os.Create(os.Args[2])
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -51,7 +51,7 @@ func main() {
 
 	sched := scheduler.New()
 
-	if err = sched.Simulate(instructions, outLoopFile, outLoopPipFile); err != nil {
+	if err = sched.Schedule(instructions, outLoopFile, outLoopPipFile); err != nil {
 		log.Fatalln(err)
 	}
 }

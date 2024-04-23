@@ -22,5 +22,6 @@ test: zip
 clean_zip:
 	rm $(ZIP_NAME)
 
-clean: clean_zip
-	rm -f $(EXE_NAME)
+clean:
+	-rm -f $(EXE_NAME)
+	make clean_zip

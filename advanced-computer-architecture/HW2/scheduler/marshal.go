@@ -17,7 +17,7 @@ func (i instruction) String() string {
 		return fmt.Sprintf("%s %d", i.type_, i.imm)
 	case mov:
 		switch i.regA.type_ {
-		case aluReg:
+		case xReg:
 			if i.usesReg {
 				return fmt.Sprintf("%s %s, %s", i.type_, i.regA, i.regB)
 			} else {
@@ -39,7 +39,7 @@ func (i instruction) String() string {
 
 func (r reg) String() string {
 	switch r.type_ {
-	case aluReg:
+	case xReg:
 		return fmt.Sprintf("x%d", r.num)
 	case predReg:
 		return fmt.Sprintf("p%d", r.num)
@@ -66,6 +66,15 @@ func (s specIns) MarshalText() ([]byte, error) {
 	return []byte(res + s.ins.String()), nil
 }
 
-func (b bundle) MarshalJSON() ([]byte, error) {
-	return json.Marshal([]specIns{b.alu1, b.alu2, b.mult, b.mem, b.branch})
+func (b *bundle) MarshalJSON() ([]byte, error) {
+	deref := func(ins *specIns) specIns {
+		if ins == nil {
+			return specIns{
+				pred: nil,
+				ins:  instruction{type_: nop},
+			}
+		}
+		return *ins
+	}
+	return json.Marshal([]specIns{deref(b.alu1), deref(b.alu2), deref(b.mult), deref(b.mem), deref(b.branch)})
 }
