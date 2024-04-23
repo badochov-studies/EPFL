@@ -73,6 +73,7 @@ type Scheduler struct {
 }
 
 type dependency struct {
+	pc int
 	// Dependent register to instruction.
 	localDeps         map[reg]int
 	interloopDeps     map[reg]struct{ init, body int }
@@ -80,10 +81,39 @@ type dependency struct {
 	postLoopDeps      map[reg]int
 }
 
+func (d dependency) nonInterloopBodyDeps() map[reg]int {
+	deps := make(map[reg]int, len(d.loopInvariantDeps)+len(d.localDeps)+len(d.interloopDeps)+len(d.postLoopDeps))
+	for r, depPc := range d.loopInvariantDeps {
+		deps[r] = depPc
+	}
+	for r, depPc := range d.localDeps {
+		deps[r] = depPc
+	}
+	for r, iDep := range d.interloopDeps {
+		deps[r] = iDep.init
+	}
+	for r, depPc := range d.postLoopDeps {
+		deps[r] = depPc
+	}
+	return deps
+}
+
 type sectionDeps struct {
-	bb0 []dependency
-	bb1 []dependency
-	bb2 []dependency
+	deps     []dependency
+	bb1Start int
+	bb2Start int
+}
+
+func (sd sectionDeps) bb0() []dependency {
+	return sd.deps[:sd.bb1Start]
+}
+
+func (sd sectionDeps) bb1() []dependency {
+	return sd.deps[sd.bb1Start:sd.bb2Start]
+}
+
+func (sd sectionDeps) bb2() []dependency {
+	return sd.deps[sd.bb2Start:]
 }
 
 func newDependency() dependency {
@@ -115,8 +145,10 @@ func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
 			bb0Regs[*dst] = instr.pc
 		}
 
-		deps.bb0 = append(deps.bb0, dep)
+		dep.pc = len(deps.deps)
+		deps.deps = append(deps.deps, dep)
 	}
+	deps.bb1Start = len(deps.deps)
 
 	// Find non-local deps in bb1.
 	bb1Regs := make(map[reg]int)
@@ -137,7 +169,8 @@ func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
 			bb1Regs[*dst] = instr.pc
 		}
 
-		deps.bb1 = append(deps.bb1, dep)
+		dep.pc = len(deps.deps)
+		deps.deps = append(deps.deps, dep)
 	}
 
 	// Remove keys overwritten immediately by bb1.
@@ -148,8 +181,8 @@ func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
 	}
 
 	// Fill rest of bb1 keys.
-	for i, instr := range b.bb1 {
-		dep := &deps.bb1[i]
+	for _, instr := range b.bb1 {
+		dep := &deps.deps[instr.pc]
 		_, ops := instr.regs()
 
 		for _, op := range ops {
@@ -167,6 +200,7 @@ func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
 			}
 		}
 	}
+	deps.bb2Start = len(deps.deps)
 
 	// Add bb2 deps.
 	bb2Regs := make(map[reg]int)
@@ -190,66 +224,51 @@ func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
 			bb2Regs[*dst] = instr.pc
 		}
 
-		deps.bb2 = append(deps.bb2, dep)
+		dep.pc = len(deps.deps)
+		deps.deps = append(deps.deps, dep)
 	}
 
 	return deps
 }
 
-// FIXME:
-// Multiple chains of instructions with data dependency, different instruction type, within the loop basic block.
-// Loop with a single invariant dependency.
-// Loop with multiple invariant dependencies.
-// Loop with bubble in the basic block before the loop.
-
 func (s *Scheduler) Schedule(instructions []string, outputLoop io.Writer, outputLoopPip io.Writer) error {
 	outJsonLoop := json.NewEncoder(outputLoop)
 	outJsonLoopPip := json.NewEncoder(outputLoopPip)
 
-	ins, err := parseInstructions(instructions)
+	instrs, err := parseInstructions(instructions)
 	if err != nil {
 		return fmt.Errorf("error scheduling, %w", err)
 	}
 
 	// Temporary debug print of decoded instructions
 	fmt.Println("Instructions:")
-	for i, in := range ins {
+	for i, instr := range instrs {
 		var r *reg
 		if i == 0 {
 			r = &reg{type_: predReg, num: 69}
 		}
-		m, err := json.Marshal(specIns{r, in})
+		m, err := json.Marshal(specIns{r, instr})
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%d: (%s)[%s]%#v\n", i, instructions[i], in, string(m))
+		fmt.Printf("%d: (%s)[%s]%#v\n", i, instructions[i], instr, string(m))
 	}
 
-	blocks := splitIntoBlocks(ins)
+	blocks := splitIntoBlocks(instrs)
 	deps := s.getDependencies(blocks)
 
 	// Temporary debug print of detected deps.
 	fmt.Println()
 	fmt.Println("Dependencies:")
-	for i, dep := range deps.bb0 {
-		fmt.Printf("(%d)[%c] %v\n", i, 'A'+i, dep)
-	}
-	for i, dep := range deps.bb1 {
-		i += len(deps.bb0)
-		fmt.Printf("(%d)[%c] %v\n", i, 'A'+i, dep)
-	}
-	for i, dep := range deps.bb2 {
-		i += len(deps.bb0) + len(deps.bb1)
+	for i, dep := range deps.deps {
 		fmt.Printf("(%d)[%c] %v\n", i, 'A'+i, dep)
 	}
 
 	// Loop
-	loopSchedule, pcToBundle := s.loopSchedule(ins, deps)
-	//if err := outJsonLoop.Encode(loopSchedule); err != nil {
-	//	return fmt.Errorf("error scheduling, %w", err)
-	//}
-	loopAllocatedRegisters := s.loopAllocateRegister(loopSchedule, deps, pcToBundle)
-	if err := outJsonLoop.Encode(loopAllocatedRegisters); err != nil {
+	ls := newLoopScheduler(instrs, deps)
+
+	loopBundles := ls.schedule()
+	if err = outJsonLoop.Encode(loopBundles); err != nil {
 		return fmt.Errorf("error scheduling, %w", err)
 	}
 

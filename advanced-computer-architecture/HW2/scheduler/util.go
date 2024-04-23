@@ -85,20 +85,20 @@ type blocks struct {
 	bb2 []instruction
 }
 
-func splitIntoBlocks(instructions []instruction) blocks {
-	for i, ins := range instructions {
-		if ins.type_.isBranch() {
-			to := ins.imm
+func splitIntoBlocks(instrs []instruction) blocks {
+	for i, instr := range instrs {
+		if instr.type_.isBranch() {
+			to := instr.imm
 			return blocks{
-				bb0: instructions[:to],
-				bb1: instructions[to : i+1],
-				bb2: instructions[i+1:],
+				bb0: instrs[:to],
+				bb1: instrs[to : i+1],
+				bb2: instrs[i+1:],
 			}
 		}
 	}
 
 	return blocks{
-		bb0: instructions,
+		bb0: instrs,
 	}
 }
 

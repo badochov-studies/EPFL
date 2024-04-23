@@ -8,8 +8,8 @@ import (
 
 func parseMnemonic(op string) (instructionType, error) {
 	i := instructionType(op)
-	for _, menomic := range allInstructions {
-		if i == menomic {
+	for _, mnemonic := range allInstructions {
+		if i == mnemonic {
 			return i, nil
 		}
 	}
