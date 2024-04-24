@@ -1,58 +1,22 @@
 package scheduler
 
 type loopScheduler struct {
-	instrs     []instruction
-	deps       sectionDeps
-	pcToBundle []int
+	blockScheduler
 }
 
 func newLoopScheduler(instrs []instruction, deps sectionDeps) *loopScheduler {
 	return &loopScheduler{
-		instrs:     instrs,
-		deps:       deps,
-		pcToBundle: make([]int, len(instrs)),
+		blockScheduler{
+			instrs:     instrs,
+			deps:       deps,
+			pcToBundle: make([]int, len(instrs)),
+		},
 	}
 }
 
 func (ls *loopScheduler) schedule() []bundle {
 	bundles := ls.doSchedule()
 	return ls.allocateRegister(bundles)
-}
-
-func (ls *loopScheduler) blockNonInterloopBodyDepsCheck(bundles []bundle, deps []dependency, blockStartIdx int) []bundle {
-	for _, dep := range deps {
-		// Check deps.
-		minDepIdx := blockStartIdx
-		for _, depPc := range dep.nonInterloopBodyDeps() {
-			bDep := ls.pcToBundle[depPc]
-			latency := ls.instrs[depPc].latency()
-
-			earliestTime := bDep + latency
-			minDepIdx = maxInt(minDepIdx, earliestTime)
-		}
-
-		sI := &specIns{
-			pred: nil,
-			ins:  ls.instrs[dep.pc],
-		}
-
-		// Find place for the op.
-		idx := minDepIdx
-		for {
-			// Extend slice if needed.
-			for len(bundles) <= idx {
-				bundles = append(bundles, bundle{})
-			}
-
-			if bundles[idx].addInst(sI) {
-				ls.pcToBundle[dep.pc] = idx
-				break
-			}
-			idx++
-		}
-	}
-
-	return bundles
 }
 
 func (ls *loopScheduler) doSchedule() []bundle {
@@ -62,7 +26,7 @@ func (ls *loopScheduler) doSchedule() []bundle {
 }
 
 func (ls *loopScheduler) doScheduleBB0(bundles []bundle) []bundle {
-	return ls.blockNonInterloopBodyDepsCheck(bundles, ls.deps.bb0(), len(bundles))
+	return ls.scheduleBlockWithoutInterloopDeps(bundles, ls.deps.bb0(), len(bundles))
 }
 
 func (ls *loopScheduler) doScheduleBB1(bundles []bundle) []bundle {
@@ -73,10 +37,10 @@ func (ls *loopScheduler) doScheduleBB1(bundles []bundle) []bundle {
 
 	bb1BundlesStart := len(bundles)
 	bb1NoLoop, bb1Loop := bb1[:len(bb1)-1], bb1[len(bb1)-1]
-	bundles = ls.blockNonInterloopBodyDepsCheck(bundles, bb1NoLoop, bb1BundlesStart)
+	bundles = ls.scheduleBlockWithoutInterloopDeps(bundles, bb1NoLoop, bb1BundlesStart)
 
 	// Check interloop deps.
-	neededII := ls.getNeededII(bb1NoLoop)
+	neededII := ls.getNeededII()
 
 	loopIdx := bb1BundlesStart + neededII - 1
 	for len(bundles) <= loopIdx {
@@ -85,7 +49,7 @@ func (ls *loopScheduler) doScheduleBB1(bundles []bundle) []bundle {
 
 	loopStart := ls.removeBubble(bundles, bb1BundlesStart, neededII)
 
-	bundles[len(bundles)-1].branch = &specIns{
+	bundles[len(bundles)-1][branch] = &specIns{
 		pred: nil,
 		ins: instruction{
 			pc:    bb1Loop.pc,
@@ -98,10 +62,10 @@ func (ls *loopScheduler) doScheduleBB1(bundles []bundle) []bundle {
 	return bundles
 }
 
-func (ls *loopScheduler) getNeededII(bb1NoLoop []dependency) int {
+func (ls *loopScheduler) getNeededII() int {
 	// Check interloop deps.
 	neededII := 1
-	for _, dep := range bb1NoLoop {
+	for _, dep := range ls.deps.bb1() {
 		currBundle := ls.pcToBundle[dep.pc]
 
 		for _, iDep := range dep.interloopDeps {
@@ -131,7 +95,7 @@ func (ls *loopScheduler) removeBubble(bundles []bundle, bb1BundlesStart int, nee
 }
 
 func (ls *loopScheduler) doScheduleBB2(bundles []bundle) []bundle {
-	return ls.blockNonInterloopBodyDepsCheck(bundles, ls.deps.bb2(), len(bundles))
+	return ls.scheduleBlockWithoutInterloopDeps(bundles, ls.deps.bb2(), len(bundles))
 }
 
 func (ls *loopScheduler) allocateRegister(bundles []bundle) []bundle {
@@ -149,7 +113,7 @@ func (ls *loopScheduler) allocateRegister(bundles []bundle) []bundle {
 func (ls *loopScheduler) gatherInstrs(bundles []bundle) []*instruction {
 	instrs := make([]*instruction, len(ls.pcToBundle))
 	for _, b := range bundles {
-		for _, sI := range b.allSpecInstr() {
+		for _, sI := range b {
 			if sI != nil {
 				instr := &sI.ins
 				instrs[instr.pc] = instr
@@ -161,7 +125,7 @@ func (ls *loopScheduler) gatherInstrs(bundles []bundle) []*instruction {
 
 func (ls *loopScheduler) allocateRegisterPhase1(bundles []bundle, currRegNum uint8) ([]bundle, uint8) {
 	for _, b := range bundles {
-		for _, sI := range b.allSpecInstr() {
+		for _, sI := range b {
 			if sI != nil {
 				dst, _ := sI.ins.mutRegs()
 				if dst != nil && dst.type_ == xReg {
@@ -190,17 +154,8 @@ func (ls *loopScheduler) allocateRegisterPhase2(instrs []*instruction) {
 	}
 }
 
-func (ls *loopScheduler) getLoopBundle(bundles []bundle) int {
-	for i, b := range bundles {
-		if b.branch != nil {
-			return i
-		}
-	}
-	return -1
-}
-
 func (ls *loopScheduler) allocateRegisterPhase3(bundles []bundle, instrs []*instruction) []bundle {
-	loopBundle := ls.getLoopBundle(bundles)
+	loopBundle := getLoopBundle(bundles)
 
 	// TODO: this can be optimized by better choosing the order of the fixups.
 	handled := make(map[reg]bool)
@@ -235,7 +190,7 @@ func (ls *loopScheduler) allocateRegisterPhase3(bundles []bundle, instrs []*inst
 
 			// Try to insert at last possible spot.
 			if fixUpBundleIdx <= loopBundle {
-				if !bundles[loopBundle].addInst(sI) {
+				if bundles[loopBundle].addInst(sI) == noSlot {
 					fixUpBundleIdx = loopBundle + 1
 				}
 			}
@@ -246,10 +201,10 @@ func (ls *loopScheduler) allocateRegisterPhase3(bundles []bundle, instrs []*inst
 				copy(bundles[fixUpBundleIdx+1:], bundles[loopBundle+1:])
 				bundles[fixUpBundleIdx] = bundle{
 					alu1:   sI,
-					branch: bundles[loopBundle].branch,
+					branch: bundles[loopBundle][branch],
 				}
 				// Remove old branch instruction
-				bundles[loopBundle].branch = nil
+				bundles[loopBundle][branch] = nil
 
 				loopBundle = fixUpBundleIdx
 			}
@@ -263,7 +218,7 @@ func (ls *loopScheduler) allocateRegisterPhase4(bundles []bundle, currRegNum uin
 	wroteTo := make(map[reg]bool)
 	for _, b := range bundles {
 		bundleWroteTo := make(map[reg]bool)
-		for _, sI := range b.allSpecInstr() {
+		for _, sI := range b {
 			if sI != nil {
 				dst, ops := sI.ins.mutRegs()
 				if dst != nil {

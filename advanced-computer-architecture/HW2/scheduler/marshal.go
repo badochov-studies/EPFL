@@ -67,14 +67,16 @@ func (s specIns) MarshalText() ([]byte, error) {
 }
 
 func (b *bundle) MarshalJSON() ([]byte, error) {
-	deref := func(ins *specIns) specIns {
-		if ins == nil {
-			return specIns{
+	var derefed [5]specIns
+	for slot, instr := range b {
+		if instr == nil {
+			derefed[slot] = specIns{
 				pred: nil,
 				ins:  instruction{type_: nop},
 			}
+		} else {
+			derefed[slot] = *instr
 		}
-		return *ins
 	}
-	return json.Marshal([]specIns{deref(b.alu1), deref(b.alu2), deref(b.mult), deref(b.mem), deref(b.branch)})
+	return json.Marshal(derefed)
 }

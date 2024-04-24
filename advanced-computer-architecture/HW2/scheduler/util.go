@@ -1,6 +1,9 @@
 package scheduler
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 func (i instruction) regs() (dst *reg, params []reg) {
 	regA := i.regA
@@ -81,30 +84,30 @@ func (it instructionType) isBranch() bool {
 	}
 }
 
-func (b *bundle) addInst(sI *specIns) bool {
+func (b *bundle) addInst(sI *specIns) bundleSlot {
 	if sI.ins.type_.isMul() {
-		if b.mult == nil {
-			b.mult = sI
-			return true
+		if b[mult] == nil {
+			b[mult] = sI
+			return mult
 		}
 	} else if sI.ins.type_.isAlu() {
-		if b.alu1 == nil {
-			b.alu1 = sI
-			return true
+		if b[alu1] == nil {
+			b[alu1] = sI
+			return alu1
 		}
-		if b.alu2 == nil {
-			b.alu2 = sI
-			return true
+		if b[alu2] == nil {
+			b[alu2] = sI
+			return alu2
 		}
 	} else if sI.ins.type_.isMem() {
-		if b.mem == nil {
-			b.mem = sI
-			return true
+		if b[mem] == nil {
+			b[mem] = sI
+			return mem
 		}
 	} else {
 		panic(fmt.Sprint("Unexpected instruction type to add:", sI.ins.type_))
 	}
-	return false
+	return noSlot
 }
 
 type blocks struct {
@@ -137,9 +140,21 @@ func (i instruction) latency() int {
 	return 1
 }
 
-func maxInt(a, b int) int {
-	if a > b {
-		return a
+func maxInt(nums ...int) int {
+	max := math.MinInt
+	for _, num := range nums {
+		if num > max {
+			max = num
+		}
 	}
-	return b
+	return max
+}
+
+func getLoopBundle(bundles []bundle) int {
+	for i, b := range bundles {
+		if b[branch] != nil {
+			return i
+		}
+	}
+	return -1
 }
