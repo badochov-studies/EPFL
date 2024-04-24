@@ -53,41 +53,8 @@ type instruction struct {
 }
 
 type specIns struct {
-	pred *reg
-	ins  instruction
-}
-
-type bundleSlot int8
-
-const noSlot bundleSlot = -1
-const (
-	alu1 bundleSlot = iota
-	alu2
-	mult
-	mem
-	branch
-)
-
-type bundle [5]*specIns
-
-func (b *bundle) empty() bool {
-	for _, slot := range b {
-		if slot != nil {
-			return false
-		}
-	}
-	return true
-}
-
-func (b *bundle) vTakeSlot(slot bundleSlot) {
-	if b[slot] == nil {
-		b[slot] = &specIns{
-			pred: nil,
-			ins: instruction{
-				type_: nop,
-			},
-		}
-	}
+	pred  *reg
+	instr instruction
 }
 
 type Scheduler struct {
@@ -146,7 +113,7 @@ func newDependency() dependency {
 	}
 }
 
-func (s *Scheduler) getDependencies(b blocks) (deps sectionDeps) {
+func (s *Scheduler) getDependencies(b blockInstrs) (deps sectionDeps) {
 	// Find deps in bb0.
 	bb0Regs := make(map[reg]int)
 
@@ -286,13 +253,11 @@ func (s *Scheduler) Schedule(instructions []string, outputLoop io.Writer, output
 	}
 
 	// Loop
-	if false {
-		ls := newLoopScheduler(instrs, deps)
+	ls := newLoopScheduler(instrs, deps)
 
-		loopBundles := ls.schedule()
-		if err = outJsonLoop.Encode(loopBundles); err != nil {
-			return fmt.Errorf("error scheduling, %w", err)
-		}
+	loopBundles := ls.schedule()
+	if err = outJsonLoop.Encode(loopBundles); err != nil {
+		return fmt.Errorf("error scheduling, %w", err)
 	}
 
 	// LoopPip
@@ -302,6 +267,7 @@ func (s *Scheduler) Schedule(instructions []string, outputLoop io.Writer, output
 	if err = outJsonLoopPip.Encode(loopPipBundles); err != nil {
 		return fmt.Errorf("error scheduling, %w", err)
 	}
+	_ = outJsonLoopPip
 
 	return nil
 }

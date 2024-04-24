@@ -63,7 +63,7 @@ func (s specIns) MarshalText() ([]byte, error) {
 		res = fmt.Sprintf("(%s) ", *s.pred)
 	}
 
-	return []byte(res + s.ins.String()), nil
+	return []byte(res + s.instr.String()), nil
 }
 
 func (b *bundle) MarshalJSON() ([]byte, error) {
@@ -71,12 +71,21 @@ func (b *bundle) MarshalJSON() ([]byte, error) {
 	for slot, instr := range b {
 		if instr == nil {
 			derefed[slot] = specIns{
-				pred: nil,
-				ins:  instruction{type_: nop},
+				pred:  nil,
+				instr: instruction{type_: nop},
 			}
 		} else {
 			derefed[slot] = *instr
 		}
 	}
 	return json.Marshal(derefed)
+}
+
+func (bb *blockBundles) MarshalJSON() ([]byte, error) {
+	bundles := make([]bundle, 0, bb.len())
+	bundles = append(bundles, bb.bb0...)
+	bundles = append(bundles, bb.bb1...)
+	bundles = append(bundles, bb.bb2...)
+
+	return json.Marshal(bundles)
 }

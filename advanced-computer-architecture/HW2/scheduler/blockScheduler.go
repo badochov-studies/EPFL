@@ -6,7 +6,7 @@ type blockScheduler struct {
 	pcToBundle []int
 }
 
-func (bs *blockScheduler) scheduleBlockWithoutInterloopDeps(bundles []bundle, deps []dependency, blockStartIdx int) []bundle {
+func (bs *blockScheduler) scheduleBlockWithoutInterloopDeps(bundles *blockBundles, deps []dependency, blockStartIdx int) *blockBundles {
 	for _, dep := range deps {
 		// Check deps.
 		minDepIdx := blockStartIdx
@@ -19,25 +19,22 @@ func (bs *blockScheduler) scheduleBlockWithoutInterloopDeps(bundles []bundle, de
 		}
 
 		sI := &specIns{
-			pred: nil,
-			ins:  bs.instrs[dep.pc],
+			pred:  nil,
+			instr: bs.instrs[dep.pc],
 		}
 
 		// Find place for the op.
 		idx := minDepIdx
 		for {
 			// Extend slice if needed.
-			for len(bundles) <= idx {
-				bundles = append(bundles, bundle{})
-			}
+			bundles.extend(blockStartIdx, idx+1)
 
-			if bundles[idx].addInst(sI) != noSlot {
+			if bundles.get(idx).addInst(sI) != noSlot {
 				bs.pcToBundle[dep.pc] = idx
 				break
 			}
 			idx++
 		}
 	}
-
 	return bundles
 }
