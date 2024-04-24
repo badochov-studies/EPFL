@@ -1,5 +1,7 @@
 package scheduler
 
+import "fmt"
+
 func (i instruction) regs() (dst *reg, params []reg) {
 	regA := i.regA
 	switch i.type_ {
@@ -77,6 +79,32 @@ func (it instructionType) isBranch() bool {
 	default:
 		return false
 	}
+}
+
+func (b *bundle) addInst(sI *specIns) bool {
+	if sI.ins.type_.isMul() {
+		if b.mult == nil {
+			b.mult = sI
+			return true
+		}
+	} else if sI.ins.type_.isAlu() {
+		if b.alu1 == nil {
+			b.alu1 = sI
+			return true
+		}
+		if b.alu2 == nil {
+			b.alu2 = sI
+			return true
+		}
+	} else if sI.ins.type_.isMem() {
+		if b.mem == nil {
+			b.mem = sI
+			return true
+		}
+	} else {
+		panic(fmt.Sprint("Unexpected instruction type to add:", sI.ins.type_))
+	}
+	return false
 }
 
 type blocks struct {
