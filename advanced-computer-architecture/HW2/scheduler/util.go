@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"math"
 )
 
 func (i instruction) regs() (dst *reg, params []reg) {
@@ -114,8 +113,7 @@ func (i instruction) latency() int {
 	return 1
 }
 
-func maxInt(nums ...int) int {
-	max := math.MinInt
+func maxInt(max int, nums ...int) int {
 	for _, num := range nums {
 		if num > max {
 			max = num
@@ -165,7 +163,7 @@ func (b *bundle) addInst(sI *specIns) bundleSlot {
 
 func (b *bundle) empty() bool {
 	for _, slot := range b {
-		if slot != nil {
+		if slot != nil && slot.instr.type_ != nop {
 			return false
 		}
 	}
@@ -177,6 +175,7 @@ func (b *bundle) vTakeSlot(slot bundleSlot) {
 		b[slot] = &specIns{
 			pred: nil,
 			instr: instruction{
+				pc:    -1,
 				type_: nop,
 			},
 		}
@@ -244,9 +243,22 @@ func (bb *blockBundles) extendBlockBy(bbStartIdx int, by int) {
 	}
 }
 
+func (bb *blockBundles) trimStart(bbStartIdx int, by int) {
+	block := bb.getBlockByStartIdx(bbStartIdx)
+	copy(*block, (*block)[by:])
+}
+
 func (bb *blockBundles) shrinkBlock(bbStartIdx int, blockLength int) {
 	block := bb.getBlockByStartIdx(bbStartIdx)
 	*block = (*block)[:blockLength]
+}
+
+func (bb *blockBundles) bb0AndBB2() []bundle {
+	res := make([]bundle, len(bb.bb0)+len(bb.bb2))
+	copy(res, bb.bb0)
+	copy(res[len(bb.bb0):], bb.bb2)
+
+	return res
 }
 
 func getLoopBundleIdx(bb *blockBundles) int {
@@ -256,4 +268,8 @@ func getLoopBundleIdx(bb *blockBundles) int {
 		}
 	}
 	return -1
+}
+
+func loopStages(bb *blockBundles, II int) int {
+	return (len(bb.bb1) + II - 1) / II
 }

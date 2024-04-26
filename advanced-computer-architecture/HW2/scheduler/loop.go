@@ -187,6 +187,7 @@ func (ls *loopScheduler) allocateRegisterPhase3(bundles *blockBundles, instrs []
 			fixUpBundleIdx := ls.pcToBundle[bb1DepPc] + bb1DepInstr.latency()
 
 			// Try to insert at last possible spot.
+			// TODO: what is a last possible spot? Is it last bundle of the loop, or last viable bundle?
 			if fixUpBundleIdx <= loopBundleIdx {
 				if bundles.get(loopBundleIdx).addInst(sI) == noSlot {
 					fixUpBundleIdx = loopBundleIdx + 1
