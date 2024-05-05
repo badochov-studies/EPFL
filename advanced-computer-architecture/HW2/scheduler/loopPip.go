@@ -54,7 +54,7 @@ func (lps *loopPipScheduler) doScheduleBB1(bundles *blockBundles) (*blockBundles
 }
 
 func (lps *loopPipScheduler) getMinII(deps []dependency) int {
-	var aluCounter, mulCounter, memCounter int
+	var aluCounter, mulCounter, memCounter, branchCounter int
 
 	for _, dep := range deps {
 		instr := lps.instrs[dep.pc]
@@ -64,12 +64,14 @@ func (lps *loopPipScheduler) getMinII(deps []dependency) int {
 			aluCounter++
 		} else if instr.type_.isMul() {
 			mulCounter++
+		} else if instr.type_.isBranch() {
+			branchCounter++
 		}
 	}
-	// There are two alu units and we need a ceil.
+	// There are two ALU units and we need a ceil.
 	aluScore := (aluCounter + 1) / 2
 
-	return maxInt(aluScore, mulCounter, memCounter)
+	return maxInt(aluScore, mulCounter, memCounter, branchCounter)
 }
 
 func (lps *loopPipScheduler) tryScheduleBB1(bundles *blockBundles, II int) (*blockBundles, bool) {
@@ -125,15 +127,9 @@ func (lps *loopPipScheduler) tryScheduleBB1(bundles *blockBundles, II int) (*blo
 	}
 
 	// Remove bubble.
-
-	// Check empty loop case.
+	// Check for empty loop case.
 	if maxAssignedIdx >= bundles.bb1Start() {
-		bubbleSize := 0
-		for bundles.get(bundles.bb1Start() + bubbleSize).empty() {
-			bubbleSize++
-		}
-		bundles.extendBlockBy(bundles.bb0Start(), bubbleSize)
-		bundles.trimStart(bundles.bb1Start(), bubbleSize)
+		bundles = lps.removePreLoopBubble(bundles)
 	}
 
 	// Add loop.
@@ -156,19 +152,19 @@ func (lps *loopPipScheduler) tryScheduleBB1(bundles *blockBundles, II int) (*blo
 	return bundles, true
 }
 
-func (lps *loopPipScheduler) checkInterLoopDeps(bb1StartIdx int, ii int) bool {
+func (lps *loopPipScheduler) checkInterLoopDeps(bb1StartIdx int, II int) bool {
 	for _, dep := range lps.deps.bb1() {
 		currBundle := lps.pcToBundle[dep.pc]
-		inStageCurrIdx := (currBundle - bb1StartIdx) % ii
+		inStageCurrIdx := (currBundle - bb1StartIdx) % II
 
 		for _, iDep := range dep.interloopDeps {
 			depPc := iDep.body
 			latency := lps.instrs[depPc].latency()
 			depBundle := lps.pcToBundle[depPc]
 
-			inStageDepIdx := (depBundle - bb1StartIdx) % ii
+			inStageDepIdx := (depBundle - bb1StartIdx) % II
 
-			if inStageDepIdx+latency > ii+inStageCurrIdx {
+			if inStageDepIdx+latency > II+inStageCurrIdx {
 				return false
 			}
 		}

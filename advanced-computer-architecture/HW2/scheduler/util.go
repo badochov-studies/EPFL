@@ -246,6 +246,7 @@ func (bb *blockBundles) extendBlockBy(bbStartIdx int, by int) {
 func (bb *blockBundles) trimStart(bbStartIdx int, by int) {
 	block := bb.getBlockByStartIdx(bbStartIdx)
 	copy(*block, (*block)[by:])
+	*block = (*block)[:len(*block)-by]
 }
 
 func (bb *blockBundles) shrinkBlock(bbStartIdx int, blockLength int) {

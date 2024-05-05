@@ -38,3 +38,14 @@ func (bs *blockScheduler) scheduleBlockWithoutInterloopDeps(bundles *blockBundle
 	}
 	return bundles
 }
+
+func (bs *blockScheduler) removePreLoopBubble(bundles *blockBundles) *blockBundles {
+	bubbleSize := 0
+	for idx := bundles.bb1Start(); idx < bundles.len() && bundles.get(idx).empty(); idx++ {
+		bubbleSize++
+	}
+	bundles.extendBlockBy(bundles.bb0Start(), bubbleSize)
+	bundles.trimStart(bundles.bb1Start(), bubbleSize)
+
+	return bundles
+}

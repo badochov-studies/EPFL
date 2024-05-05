@@ -38,13 +38,13 @@ func (ls *loopScheduler) doScheduleBB1(bundles *blockBundles) *blockBundles {
 	bb1NoLoop, bb1Loop := bb1[:len(bb1)-1], bb1[len(bb1)-1]
 	bundles = ls.scheduleBlockWithoutInterloopDeps(bundles, bb1NoLoop, bundles.bb1Start())
 
+	bundles = ls.removePreLoopBubble(bundles)
+
 	// Check interloop deps.
 	neededII := ls.getNeededII()
 
 	loopNeededIdx := bundles.bb1Start() + neededII - 1
 	bundles.extend(bundles.bb1Start(), loopNeededIdx+1)
-
-	loopStart := ls.removeBubble(bundles, neededII)
 
 	loopIdx := bundles.len() - 1
 	bundles.get(loopIdx)[branch] = &specIns{
@@ -52,7 +52,7 @@ func (ls *loopScheduler) doScheduleBB1(bundles *blockBundles) *blockBundles {
 		instr: instruction{
 			pc:    bb1Loop.pc,
 			type_: loop,
-			imm:   int64(loopStart),
+			imm:   int64(bundles.bb1Start()),
 		},
 	}
 	ls.pcToBundle[bb1Loop.pc] = loopIdx
@@ -77,19 +77,6 @@ func (ls *loopScheduler) getNeededII() int {
 	}
 
 	return neededII
-}
-
-func (ls *loopScheduler) removeBubble(bundles *blockBundles, neededII int) int {
-	loopStart := bundles.bb1Start()
-	for loopStart+neededII < bundles.len() {
-		if bundles.get(loopStart).empty() {
-			loopStart++
-		} else {
-			break
-		}
-	}
-
-	return loopStart
 }
 
 func (ls *loopScheduler) doScheduleBB2(bundles *blockBundles) *blockBundles {
