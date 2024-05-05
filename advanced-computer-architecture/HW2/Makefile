@@ -1,4 +1,4 @@
-TO_ZIP := scheduler build.sh go.mod main.go run.sh
+TO_ZIP := scheduler build.sh go.mod main.go run.sh README.md LICENSE
 ZIP_NAME ?= HW2.zip
 EXE_NAME ?= VLIW470
 ASS_PATH ?= ../CS470-Homeworks/HW2/
