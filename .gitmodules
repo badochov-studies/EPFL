@@ -25,3 +25,6 @@
 [submodule "quantum-computing/QuantumComputingMini"]
 	path = quantum-computing/QuantumComputingMini
 	url = git@github.com:Caesiumhydroxid/QuantumComputingMini.git
+[submodule "modern-nlp/project-m3-2024-giewont"]
+	path = modern-nlp/project-m3-2024-giewont
+	url = git@github.com:CS-552/project-m3-2024-giewont.git
